@@ -1,0 +1,93 @@
+<script src="face-api.js"></script>
+
+<style>
+  #container {
+    position: relative;
+    width: 640px;
+    margin: auto;
+  }
+  #overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+</style>
+
+<div id="container">
+  <video onplay="run(this)" id="inputVideo" autoplay muted></video>
+  <canvas id="overlay" width="640" height="480">
+</div>
+
+<script>
+  const labels = [
+    // FIXME!
+    'nobu',
+  ]
+
+  const overlay = document.getElementById('overlay')
+  const context = overlay.getContext('2d')
+  context.font = '48px sans-serif'
+  context.fillText('Loading...', 0, 50)
+
+  let faceMatcher = null
+
+  async function prepare() {
+    console.log('Loading models...')
+    await faceapi.loadSsdMobilenetv1Model('/models')
+    await faceapi.loadFaceRecognitionModel('/models')
+    await faceapi.loadFaceLandmarkModel('/models')
+
+    const labeledFaceDescriptors = await Promise.all(
+      labels.map(async label => {
+        console.log(`Preparing for ${label}...`)
+        const imgUrl = `${label}.jpg`
+        const img = await faceapi.fetchImage(imgUrl)
+        
+        const fullFaceDescription = await faceapi
+          .detectSingleFace(img)
+          .withFaceLandmarks()
+          .withFaceDescriptor()
+
+        if (!fullFaceDescription) {
+          throw new Error(`no faces detected for ${label}`)
+        }
+        
+        const faceDescriptors = [fullFaceDescription.descriptor]
+        return new faceapi.LabeledFaceDescriptors(label, faceDescriptors)
+      })
+    ).catch((e) => alert(e))
+
+    const maxDescriptorDistance = 0.6
+
+    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, maxDescriptorDistance)
+
+    navigator.getUserMedia(
+      { video: {} },
+      stream => document.getElementById('inputVideo').srcObject = stream,
+      err => console.error(err)
+    )
+  }
+
+  async function run(input) {
+    const fullFaceDescriptions = await faceapi
+      .detectAllFaces(input)
+      .withFaceLandmarks()
+      .withFaceDescriptors()
+
+    const results = fullFaceDescriptions.map(fd => faceMatcher.findBestMatch(fd.descriptor))
+
+    const boxesWithText = results.map((bestMatch, i) => {
+      const box = fullFaceDescriptions[i].detection.box
+      const text = bestMatch.toString()
+      const boxWithText = new faceapi.BoxWithText(box, text)
+      return boxWithText
+    })
+
+    context.clearRect(0, 0, overlay.width, overlay.height)
+    faceapi.drawDetection(overlay, boxesWithText)
+
+    setTimeout(() => run(input), 200)
+  }
+  
+  prepare()
+</script>
