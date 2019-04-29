@@ -22,72 +22,72 @@
   const labels = [
     // FIXME!
     'nobu',
-  ]
+  ];
 
-  const overlay = document.getElementById('overlay')
-  const context = overlay.getContext('2d')
-  context.font = '48px sans-serif'
-  context.fillText('Loading...', 0, 50)
+  const overlay = document.getElementById('overlay');
+  const context = overlay.getContext('2d');
+  context.font = '48px sans-serif';
+  context.fillText('Loading...', 0, 50);
 
-  let faceMatcher = null
+  let faceMatcher = null;
 
   async function prepare() {
-    console.log('Loading models...')
-    await faceapi.loadSsdMobilenetv1Model('/models')
-    await faceapi.loadFaceRecognitionModel('/models')
-    await faceapi.loadFaceLandmarkModel('/models')
+    console.log('Loading models...');
+    await faceapi.loadSsdMobilenetv1Model('/models');
+    await faceapi.loadFaceRecognitionModel('/models');
+    await faceapi.loadFaceLandmarkModel('/models');
 
     const labeledFaceDescriptors = await Promise.all(
-      labels.map(async label => {
-        console.log(`Preparing for ${label}...`)
-        const imgUrl = `${label}.jpg`
-        const img = await faceapi.fetchImage(imgUrl)
-        
+      labels.map(async (label) => {
+        console.log(`Preparing for ${label}...`);
+        const imgUrl = `${label}.jpg`;
+        const img = await faceapi.fetchImage(imgUrl);
+  
         const fullFaceDescription = await faceapi
           .detectSingleFace(img)
           .withFaceLandmarks()
-          .withFaceDescriptor()
+          .withFaceDescriptor();
 
         if (!fullFaceDescription) {
-          throw new Error(`no faces detected for ${label}`)
+          throw new Error(`no faces detected for ${label}`);
         }
-        
-        const faceDescriptors = [fullFaceDescription.descriptor]
-        return new faceapi.LabeledFaceDescriptors(label, faceDescriptors)
-      })
-    ).catch((e) => alert(e))
+  
+        const faceDescriptors = [fullFaceDescription.descriptor];
+        return new faceapi.LabeledFaceDescriptors(label, faceDescriptors);
+      }),
+    ).catch(e => alert(e));
 
-    const maxDescriptorDistance = 0.6
+    const maxDescriptorDistance = 0.6;
 
-    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, maxDescriptorDistance)
+    faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, maxDescriptorDistance);
 
     navigator.getUserMedia(
       { video: {} },
       stream => document.getElementById('inputVideo').srcObject = stream,
-      err => console.error(err)
-    )
+      err => console.error(err),
+    );
   }
 
   async function run(input) {
     const fullFaceDescriptions = await faceapi
       .detectAllFaces(input)
       .withFaceLandmarks()
-      .withFaceDescriptors()
+      .withFaceDescriptors();
 
-    const results = fullFaceDescriptions.map(fd => faceMatcher.findBestMatch(fd.descriptor))
+    const results = fullFaceDescriptions.map(fd => faceMatcher.findBestMatch(fd.descriptor));
 
     const boxesWithText = results.map((bestMatch, i) => {
-      const box = fullFaceDescriptions[i].detection.box
-      const text = bestMatch.toString()
-      const boxWithText = new faceapi.BoxWithText(box, text)
-      return boxWithText
-    })
+      const box = fullFaceDescriptions[i].detection.box;
+      const text = bestMatch.toString();
+      const boxWithText = new faceapi.BoxWithText(box, text);
+      return boxWithText;
+    });
 
-    context.clearRect(0, 0, overlay.width, overlay.height)
-    faceapi.drawDetection(overlay, boxesWithText)
+    context.clearRect(0, 0, overlay.width, overlay.height);
+    faceapi.drawDetection(overlay, boxesWithText);
 
-    setTimeout(() => run(input), 200)
+    setTimeout(() => run(input), 200);
   }
   
-  prepare()
+  prepare();
 </script>
