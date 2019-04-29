@@ -1,0 +1,107 @@
+<style>
+  h1, #staff {
+    text-align: center;
+    cursor: pointer;
+    font-family: Helvetica, sans-serif;
+  }
+  #staff {
+    font-size: 7rem;
+  }
+</style>
+
+<h1>Click here to start</h1>
+
+<div id="staff"></div>
+
+<script>
+  if (!('webkitSpeechRecognition' in window)) {
+    alert('Please use Google Chrome for this app!');
+  }
+  const synth = window.speechSynthesis;
+  const language = 'ja-JP';
+  const voiceName = 'Google 日本語';
+  const welcomeMessage = 'いらっしゃいませ。ラーメンですね。麺の固さはどうされますか？';
+  const sorryMessage = '申し訳ありません。それは無理です。';
+  const noodleOptions = [
+    '普通',
+    '固め',
+    'バリカタ',
+  ];
+
+  function getReceivedOrderMessage(order) {
+    return `${order}で承りました。`;
+  }
+
+  function say(message, callback) {
+    const sayThis = new SpeechSynthesisUtterance(message);
+    sayThis.voice = synth.getVoices().find(voice => voice.name === voiceName);
+    sayThis.onend = callback;
+    synth.speak(sayThis);
+  }
+
+  function getReceivedOrder(alternatives) {
+    let receivedOrder = null;
+
+    // note that alternatives is not an Array
+    for (let i = 0; i < alternatives.length; i++) {
+      receivedOrder = noodleOptions.find(noodleOption => alternatives[i].transcript.includes(noodleOption));
+
+      if (receivedOrder) {
+        break;
+      }
+    }
+
+    return receivedOrder;
+  }
+
+  function showStaff() {
+    document.getElementById('staff').textContent = '💁‍♂️';
+  }
+
+  function showRamen() {
+    document.getElementById('staff').textContent = '🍜';
+  }
+
+  function replyOrder(event) {
+    console.log(event.results);
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/SpeechRecognitionResultList#Examples
+    const receivedOrder = getReceivedOrder(event.results[0]);
+
+    if (receivedOrder) {
+      say(getReceivedOrderMessage(receivedOrder), showRamen);
+    } else {
+      say(sorryMessage, takeOrder);
+    }
+  }
+
+  function takeOrder() {
+    const grammar = `#JSGF V1.0; grammar menus; public <noodleOptions> = ${noodleOptions.join(' | ')} ;`;
+    const recognition = new webkitSpeechRecognition();
+    const speechRecognitionList = new webkitSpeechGrammarList();
+    speechRecognitionList.addFromString(grammar, 1);
+    recognition.grammars = speechRecognitionList;
+    recognition.continuous = false;
+    recognition.lang = language;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 3;
+    recognition.onresult = replyOrder;
+    recognition.start();
+  }
+
+  function start() {
+    showStaff();
+    say(welcomeMessage, takeOrder);
+  }
+
+  let initialized = false;
+  synth.onvoiceschanged = (e) => {
+    if (initialized) {
+      return;
+    }
+    initialized = true;
+    console.log(synth.getVoices().filter(voice => voice.lang === language));
+    document.onclick = start;
+    showStaff();
+  };
+</script>
